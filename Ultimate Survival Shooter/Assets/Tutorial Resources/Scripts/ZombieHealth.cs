@@ -1,0 +1,94 @@
+﻿using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.AI;
+using UnityEngine.UI;
+
+public class ZombieHealth : ShootableObjectsHealth
+{
+    public float startingHealth = 100;            // The amount of health the enemy starts the game with.
+    public float currentHealth;                   // The current health the enemy has.
+    public float sinkSpeed = 2.5f;              // The speed at which the enemy sinks through the floor when dead.
+    public int scoreValue = 10;                 // The amount added to the player's score when the enemy dies.
+    public AudioClip deathClip;                 // The sound to play when the enemy dies.
+    public Slider healthSlider;
+    public Color m_FullHealthColor = Color.green;
+    public Color m_ZeroHealthColor = Color.red;
+    public Image m_FillImage;
+
+    Animator anim;                              // Reference to the animator.
+    AudioSource enemyAudio;
+    ParticleSystem hitParticles;                // Reference to the particle system that plays when the enemy is damaged.
+    CapsuleCollider capsuleCollider;            // Reference to the capsule collider.
+    bool isDead;                                // Whether the enemy is dead.
+    bool isSinking;                             // Whether the enemy has started sinking through the floor.
+
+
+    void Awake()
+    {
+        // Setting up the references.
+        anim = GetComponent<Animator>();
+        enemyAudio = GetComponent<AudioSource>();
+        hitParticles = GetComponentInChildren<ParticleSystem>();
+        capsuleCollider = GetComponent<CapsuleCollider>();
+
+        // Setting the current health when the enemy first spawns and Update the health slider's value and color.
+        currentHealth = startingHealth;
+        SetHealthUI();
+    }
+
+    void Update()
+    {
+        // If the enemy should be sinking move the enemy down by the sinkSpeed per second. in negative down direction PER SECOND NOT PER FRAME
+        if (isSinking)
+        {
+            transform.Translate(-Vector3.up * sinkSpeed * Time.deltaTime);
+        }
+    }
+    
+    public override void TakeDamage(int amount, Vector3 hitPoint) //hit point tells where the enemy was hit... so the fluff is not going eveywhere 
+    {
+        // ... if the enemy is dead there is no need to take damage so exit the function.
+        if (isDead)
+            return; 
+
+        currentHealth -= amount; 
+        hitParticles.transform.position = hitPoint; // Set the position of the particle system to where the hit was sustained.
+        hitParticles.Play();
+        SetHealthUI();
+
+
+        if (currentHealth <= 0)
+        {
+            Death();
+        }
+    }
+
+    private void SetHealthUI()
+    {
+        // Set the slider's value appropriately.
+        healthSlider.value = currentHealth;
+        // Interpolate the color of the bar between the choosen colours based on the current percentage of the starting health.
+        m_FillImage.color = Color.Lerp(m_ZeroHealthColor, m_FullHealthColor, currentHealth / startingHealth);
+    }
+
+    void Death()
+    {
+        isDead = true; // The enemy is dead.
+        capsuleCollider.isTrigger = true; // Turn the collider into a trigger so shots can pass through it. and it stops to be an obstalce so you can run through it "like invisible"
+        anim.SetTrigger("Dead"); // Tell the animator that the enemy is dead.
+        enemyAudio.clip = deathClip;
+        enemyAudio.Play();
+    }
+
+
+    public void StartSinking()
+    {
+        GetComponent<NavMeshAgent>().enabled = false;   // Find and disable the Nav Mesh Agent. just to trun off the JUST THE component of GO (when u turn off object you use setactive = false)
+        GetComponent<Rigidbody>().isKinematic = true;   // Find the rigidbody component and make it kinematic (since we use Translate to sink the enemy).
+
+        isSinking = true;                               // The enemy should no sink.
+        ScoreManager.score += scoreValue;               // Increase the score by the enemy's score value.
+        Destroy(gameObject, 2f);                        // After 2 seconds destory the enemy GO.
+    }
+}
